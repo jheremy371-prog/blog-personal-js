@@ -1,22 +1,30 @@
 const blogForm = document.getElementById('blogForm');
 const postsList = document.getElementById('postsList');
+const searchInput = document.getElementById('searchInput');
 
-// Ejecutar al cargar la página
+// 1. Ejecutar al cargar la página (y proteger ruta)
 document.addEventListener('DOMContentLoaded', () => {
-    // Proteger la ruta: Si no hay sesión, volver al login
     const sesion = JSON.parse(localStorage.getItem('sesionActiva'));
     if (!sesion) {
         window.location.href = 'login.html';
         return;
     }
-    // Mostrar el email del usuario logueado
     document.getElementById('userNameDisplay').textContent = sesion.email;
     renderPosts();
 });
 
-// Crear o Editar publicación
+// 2. Buscador en tiempo real
+if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+        renderPosts(e.target.value.toLowerCase());
+    });
+}
+
+// 3. Crear o Editar publicación
 blogForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    
+    // Capturar datos del formulario
     const id = document.getElementById('postId').value;
     const title = document.getElementById('postTitle').value;
     const content = document.getElementById('postContent').value;
@@ -35,41 +43,66 @@ blogForm.addEventListener('submit', (e) => {
             title, 
             content, 
             author: user, 
-            date: new Date().toLocaleDateString() 
+            date: new Date().toLocaleString() // toLocaleString añade fecha y hora
         });
     }
 
+    // Guardar y limpiar
     localStorage.setItem('posts', JSON.stringify(posts));
     blogForm.reset();
     document.getElementById('postId').value = '';
     document.getElementById('submitBtn').textContent = 'Publicar';
+    
+    // Mostrar Toast
+    showToast(id ? 'Publicación actualizada' : 'Publicación creada con éxito', 'success');
+    
+    // Limpiar buscador al crear
+    if(searchInput) searchInput.value = ''; 
     renderPosts();
 });
 
-// Leer (Renderizar) publicaciones
-function renderPosts() {
+// 4. Leer (Renderizar) publicaciones con filtro
+function renderPosts(filterText = '') {
     const posts = JSON.parse(localStorage.getItem('posts')) || [];
-    postsList.innerHTML = posts.map(post => `
+    
+    // Lógica del filtro
+    const filteredPosts = posts.filter(post => 
+        post.title.toLowerCase().includes(filterText) || 
+        post.content.toLowerCase().includes(filterText)
+    );
+
+    // Mensaje si no hay resultados
+    if (filteredPosts.length === 0) {
+        postsList.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 20px;">No se encontraron publicaciones.</p>`;
+        return;
+    }
+
+    // Renderizar tarjetas
+    postsList.innerHTML = filteredPosts.map(post => `
         <div class="post-card">
             <h4 style="margin-bottom: 5px;">${post.title}</h4>
             <p style="color: gray; font-size: 0.8em; margin-top: 0;">${post.date} | por ${post.author}</p>
             <p>${post.content}</p>
-            <button onclick="editPost(${post.id})" class="btn-edit">Editar</button>
-            <button onclick="deletePost(${post.id})" class="btn-delete">Eliminar</button>
+            <div style="margin-top: 15px;">
+                <button onclick="editPost(${post.id})" class="btn-edit">Editar</button>
+                <button onclick="deletePost(${post.id})" class="btn-delete">Eliminar</button>
+            </div>
         </div>
-    `).reverse().join(''); // reverse() para mostrar los más nuevos primero
+    `).reverse().join('');
 }
 
-// Eliminar publicación
+// 5. Eliminar publicación
 function deletePost(id) {
     if (confirm('¿Estás seguro de eliminar esta publicación?')) {
         let posts = JSON.parse(localStorage.getItem('posts')) || [];
         localStorage.setItem('posts', JSON.stringify(posts.filter(p => p.id != id)));
+        
+        showToast('Publicación eliminada', 'error');
         renderPosts();
     }
 }
 
-// Preparar edición
+// 6. Preparar edición
 function editPost(id) {
     const posts = JSON.parse(localStorage.getItem('posts')) || [];
     const post = posts.find(p => p.id == id);
